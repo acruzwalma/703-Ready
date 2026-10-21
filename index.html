@@ -82,7 +82,7 @@ details summary{cursor:pointer;color:var(--mut);font-size:12px;margin-top:6px}
 <input type="file" id="fit-file" accept=".fit,.FIT" multiple hidden>
 <input type="file" id="csv-file" accept=".csv" multiple hidden>
 <input type="file" id="json-file" accept=".json" hidden>
-<script src="plan.js?v=5"></script>
+<script src="plan.js?v=6"></script>
 <script src="fit.js?v=4"></script>
 <script>
 "use strict";
@@ -239,7 +239,9 @@ function weekPlan(mon){
 }
 function mondayOf(d){return addDays(d,-((D(d).getDay()+6)%7))}
 function sessionsFor(date){return weekPlan(mondayOf(date))[date].sessions}
-function notesFor(date){return weekPlan(mondayOf(date))[date].notes}
+function notesFor(date){const n=[...weekPlan(mondayOf(date))[date].notes];
+  if(D(date).getDay()===3&&sessionsFor(date).some(s=>s.type!=='rest')) n.unshift('Wednesday is date night: do this session in the morning.');
+  return n}
 
 function matchDay(date){
   const plan=sessionsFor(date).filter(s=>s.type!=='rest'); const cand=doneFor(date); const used=new Set();
