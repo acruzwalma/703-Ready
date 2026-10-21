@@ -1,0 +1,49 @@
+name: Sync Whoop
+
+on:
+  schedule:
+    - cron: "0 11 * * *"   # every day, 7:00 am Eastern (6:00 in winter)
+  workflow_dispatch:
+    inputs:
+      code:
+        description: "Whoop code — only the first time you connect (leave blank otherwise)"
+        required: false
+      days:
+        description: "How many days to pull (4 is normal; 120 for a backfill)"
+        required: false
+        default: "4"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: whoop-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Pull Whoop and Intervals.icu data
+        run: node scripts/sync.mjs
+        env:
+          APP_PASSPHRASE: ${{ secrets.APP_PASSPHRASE }}
+          WHOOP_CLIENT_ID: ${{ secrets.WHOOP_CLIENT_ID }}
+          WHOOP_CLIENT_SECRET: ${{ secrets.WHOOP_CLIENT_SECRET }}
+          INTERVALS_ATHLETE_ID: ${{ secrets.INTERVALS_ATHLETE_ID }}
+          INTERVALS_API_KEY: ${{ secrets.INTERVALS_API_KEY }}
+          CODE: ${{ github.event.inputs.code }}
+          DAYS: ${{ github.event.inputs.days }}
+      - name: Save the encrypted data
+        run: |
+          git config user.name "whoop-sync"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data
+          if git diff --cached --quiet; then echo "No changes"; exit 0; fi
+          git commit -m "Whoop sync $(date -u +%Y-%m-%d)"
+          git pull --rebase
+          git push
