@@ -4,12 +4,12 @@
 (function(){
 const BLOCKS=[
  {id:'recover',name:'Recover',start:'2026-10-18',end:'2026-11-01',focus:'Two easy weeks after the race. Nothing hard.'},
- {id:'b1',name:'B1 Test + base',start:'2026-11-02',end:'2026-11-29',focus:'Four field tests set every target. Saturdays introduce sweet spot.'},
+ {id:'b1',name:'B1 Test + base',start:'2026-11-02',end:'2026-11-29',focus:'Three field tests set every target (no pool until late May, so no swim test). Saturdays introduce sweet spot.'},
  {id:'b2',name:'B2 Aero + threshold',start:'2026-11-30',end:'2027-01-03',focus:'Clip-ons and a fit in early December, then every bike session in position. Threshold builds to 2 × 20.'},
  {id:'b3',name:'B3 Run speed',start:'2027-01-04',end:'2027-02-28',focus:'The run is the biggest gap. Wednesdays carry 5K-pace and threshold work; bike holds threshold.'},
- {id:'g1',name:'Gate 1 block',start:'2027-03-01',end:'2027-03-28',focus:'Retest week Mar 15–21. Gate 1: FTP ≥ 212 W and 5K ≤ 22:30 keep 5:30 live.'},
+ {id:'g1',name:'Gate 1 block',start:'2027-03-01',end:'2027-03-28',focus:'Retest week Mar 15–21 (FTP, 5K, durability). Gate 1: FTP ≥ 212 W and 5K ≤ 22:30 keep 5:30 live.'},
  {id:'b4',name:'B4 Race-specific',start:'2027-03-29',end:'2027-05-23',focus:'Race-power blocks with a run off the bike every Saturday. Spring Olympic on May 15.'},
- {id:'hold',name:'Hold + Gate 2',start:'2027-05-24',end:'2027-07-04',focus:'Hold the load through graduation. Gate 2 tests Jun 22 and Jun 26.'},
+ {id:'hold',name:'Hold + Gate 2',start:'2027-05-24',end:'2027-07-04',focus:'Hold the load through graduation. The pool reopens Memorial Day weekend: CSS test May 31, then a weekly swim. Gate 2 tests Jun 22 and Jun 26.'},
  {id:'trip',name:'Southeast Asia trip',start:'2027-07-05',end:'2027-07-25',focus:'No bike. Run three times a week, swim when you can, bodyweight strength.'},
  {id:'b5',name:'B5 Big build',start:'2027-07-26',end:'2027-09-19',focus:'The only high-volume window: 8–10 h a week, long rides to 3:30, three race simulations.'},
  {id:'peak',name:'Peak',start:'2027-09-20',end:'2027-10-03',focus:'Race-specific sharpness at slightly lower volume.'},
@@ -50,7 +50,7 @@ const S=(type,title,min,detail,o={})=>Object.assign({type,title,min,detail},o);
 function bikeTh(t,n,reps,lo,hi,min=45,rest){return S('bike',`Bike ${min}: ${reps}`,min,`Warm up 10 min. ${reps} at ${t.W(lo,hi)}${rest?', '+rest+' easy between':''}. Cool down.`,{key:true,intensity:true})}
 function sat90(t,blocks,runOff,min=90){return S('bike',`Bike ${min}: ${blocks} race power`,min,`Steady Zone 2 (${t.Z2()}) with ${blocks} at ${t.RP()}. In the aero position from December.${runOff?` Then run ${runOff} min at ${t.rp()}.`:''}`,{key:true,intensity:true,brick:!!runOff})}
 const STR_A=S('strength','Strength A',40,'Trap-bar deadlift 4×5 @ 80–85% 1RM · RFE split squat 3×6–8/leg · eccentric step-down 3×10/leg (3 s down) · seated calf raise 3×12–15 · Copenhagen plank 3×20–30 s');
-const STR_B=S('strength','Strength B',20,'Hip thrust 3×8–12 · single-leg RDL 3×8/leg · lateral band walk 3×15 · Pallof press 3×10 · side plank 3×30–45 s');
+const STR_B=S('strength','Strength B',20,'Hip thrust 3×8–12 · single-leg RDL 3×8/leg · lateral band walk 3×15 · Pallof press 3×10 · side plank 3×30–45 s · swim dryland: band pull-aparts 2×15, straight-arm band pulldowns 2×12');
 const REST=S('rest','Rest',0,'Off, or 10 min mobility.');
 function easyRun(t,min,strides){return S('run',`Run ${min} easy`,min,`Easy ${t.easy()}${strides?' + 4–6 × 20 s strides':''}.`)}
 function longRun(t,min,rpMin){return S('run',`Long run ${min}`,min,`Easy ${t.easy()}${rpMin?`; last ${rpMin} min at ${t.rp()}`:''}.`,{key:true})}
@@ -67,17 +67,16 @@ function runQ(t,kind,min=40){
 function swimCSS(t,min=40){return S('swim',`Swim ${min}: CSS`,min,`400 easy · 8 × 100 at ${t.css(0)} (15 s rest) · 4 × 50 fast · 200 easy`)}
 
 const TESTS={
- '2026-11-01':st=>[S('swim','TEST: Swim CSS',45,'400 easy, 4 × 50 build. 400 m all-out from a push. 10 min easy. 200 m all-out. CSS /100 m = (T400 − T200) ÷ 2. Enter it under Tests.',{test:'css-nov'})],
  '2026-11-07':st=>[S('bike','TEST: 20-min FTP',65,'20 min easy with 3 × 1 min at ~220 W. 5 min hard. 10 min easy. 20 min maximal: start at 195 W, hold 5 min, then raise it if you can. Resistance mode, not ERG. Edge recording, Whoop HR on. Upload the FIT under Tests.',{key:true,test:'ftp-nov'})],
  '2026-11-14':st=>[S('run','TEST: 5K time trial',40,'Flat course (American Tobacco Trail or a track). 15 min easy, 4 × 20 s strides, 5 km even effort. Record HR. Enter the time under Tests.',{key:true,test:'5k-nov'})],
  '2026-11-15':st=>{const t=T(st);return[S('brick','Bike 90: 2 × 15 sweet spot + run 20',110,`Zone 2 with 2 × 15 min at ${t.W(0.88,0.94)}, then run 20 min easy (${t.easy()}).`,{key:true,intensity:true})]},
  '2026-11-28':st=>{const t=T(st);return[S('bike','TEST: Durability',115,`90 min at ${t.W(0.65,0.70)}, then 20 min maximal. Weigh yourself nude before and after and log every ounce you drink (sweat rate). Upload the FIT under Tests.`,{key:true,test:'dur-nov'})]},
  '2027-02-06':st=>[S('bike','TEST: 20-min FTP',65,'Same protocol as Nov 7. Upload the FIT under Tests.',{key:true,test:'ftp-feb'})],
  '2027-03-13':st=>{const t=T(st);return[S('bike','TEST: Durability',115,`90 min at ${t.W(0.65,0.70)}, then 20 min maximal.`,{key:true,test:'dur-mar'})]},
- '2027-03-15':st=>[S('swim','TEST: Swim CSS',45,'Same protocol as Nov 1.',{test:'css-mar'})],
  '2027-03-20':st=>[S('bike','TEST: 20-min FTP (Gate 1)',65,'Same protocol as Nov 7.',{key:true,test:'ftp-g1'})],
  '2027-03-21':st=>[S('run','TEST: 5K time trial (Gate 1)',40,'Same protocol as Nov 14.',{key:true,test:'5k-g1'})],
- '2027-05-15':st=>[S('brick','RACE: Spring Olympic',150,'1500 m swim · 40 km bike at 0.88 × FTP · 10 km run. Enter splits under Tests.',{key:true,test:'oly'})],
+ '2027-05-15':st=>[S('brick','RACE: Spring Olympic',150,'1500 m swim · 40 km bike at 0.88 × FTP · 10 km run. No pool swims since October: wear the wetsuit, start wide and swim the first 400 m relaxed. Enter splits under Tests.',{key:true,test:'oly'})],
+ '2027-05-31':st=>[S('swim','TEST: Swim CSS (pool reopens)',45,'First swim since October. 400 easy, 4 × 50 build. 400 m all-out from a push. 10 min easy. 200 m all-out. CSS /100 m = (T400 − T200) ÷ 2. Enter it under Tests and in Setup.',{test:'css-may'})],
  '2027-06-22':st=>[S('bike','TEST: 20-min FTP (Gate 2)',65,'Same protocol as Nov 7.',{key:true,test:'ftp-g2'})],
  '2027-06-26':st=>[S('run','TEST: 10K time trial (Gate 2)',65,'15 min easy, strides, 10 km even effort.',{key:true,test:'10k-g2'})],
  '2027-08-14':st=>{const t=T(st);return[S('brick','RACE SIM 1',205,`2:45 at ${t.RP()} with race fueling, then 40 min at ${t.rp()}. Practice the full fluid plan.`,{key:true,intensity:true})]},
@@ -118,7 +117,7 @@ function sessionsFor(date,st){
     return [[REST],[pick(tue)],[w?runQ(t,w):easyRun(t,40,true)],[STR_A],[easyRun(t,35,true)],[pick(sat)],[longRun(t,pick(sun)),STR_B]][dow];
   }
   case 'g1': {
-    if(wk===2) return [[swimCSS(t)],[S('bike','Bike 45: openers',45,`Zone 2 with 3 × 1 min at ${t.W(1.0,1.05)}.`)],[easyRun(t,30,true)],[S('strength','Light strength',30,'Half of Strength A, no heavy deadlift.')],[REST],[],[]][dow];
+    if(wk===2) return [[REST],[S('bike','Bike 45: openers',45,`Zone 2 with 3 × 1 min at ${t.W(1.0,1.05)}.`)],[easyRun(t,30,true)],[S('strength','Light strength',30,'Half of Strength A, no heavy deadlift.')],[REST],[],[]][dow];
     if(wk===3) return [[REST],[S('bike','Bike 45 easy',45,t.Z2())],[easyRun(t,35)],[STR_A],[REST],[S('bike','Bike 75 Zone 2',75,t.Z2())],[easyRun(t,60)]][dow];
     const tue=[bikeTh(t,0,'2 × 20 min',0.97,1.02,50,'5 min'),bikeTh(t,0,'3 × 12 min',1.0,1.03,50,'3 min')];
     return [[REST],[pick(tue)],[runQ(t,wk?'vo6':'thr48')],[STR_A],[easyRun(t,35,true)],[sat90(t,'2 × 30 min',15)],[longRun(t,wk?80:85),STR_B]][dow];
@@ -136,7 +135,7 @@ function sessionsFor(date,st){
     const tue=[bikeTh(t,0,'2 × 20 min',0.97,1.02,50,'5 min'),bikeTh(t,0,'3 × 15 min',0.98,1.02,55,'4 min'),bikeTh(t,0,'2 × 20 min',0.97,1.02,50,'5 min'),S('bike','Bike 45 easy',45,t.Z2()),null,S('bike','Bike 45 easy',45,t.Z2())];
     const wed=['hm220','thr55','thr312',null,'thr64',null];
     const w=pick(wed);
-    return [[REST],[pick(tue)||S('bike','Bike 45 easy',45,t.Z2())],[w?runQ(t,w,45):easyRun(t,mn(40),true)],[STR_A],[easyRun(t,mn(35),true)],[wk===3?S('bike','Bike 75 Zone 2',75,t.Z2()):sat90(t,wk===5?'2 × 20 min':'2 × 35 min',20,wk===5?75:105)],[longRun(t,mn(90),wk===3||wk===5?0:25),STR_B]][dow];
+    return [[wk>=2?swimCSS(t,40):REST],[pick(tue)||S('bike','Bike 45 easy',45,t.Z2())],[w?runQ(t,w,45):easyRun(t,mn(40),true)],[STR_A],[easyRun(t,mn(35),true)],[wk===3?S('bike','Bike 75 Zone 2',75,t.Z2()):sat90(t,wk===5?'2 × 20 min':'2 × 35 min',20,wk===5?75:105)],[longRun(t,mn(90),wk===3||wk===5?0:25),STR_B]][dow];
   }
   case 'trip': return [[S('swim','Swim / snorkel',30,'Optional, easy.')],[easyRun(t,35,true)],[S('strength','Bodyweight strength',20,'Split squats, single-leg RDL, step-downs, planks.')],[runQ(t,'thr45',40)],[S('strength','Bodyweight strength',20,'Same circuit.')],[easyRun(t,45)],[REST]][dow];
   case 'b5': {
