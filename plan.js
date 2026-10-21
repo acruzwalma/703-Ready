@@ -70,7 +70,7 @@ const TESTS={
  '2026-11-07':st=>[S('bike','TEST: 20-min FTP',65,'20 min easy with 3 × 1 min at ~220 W. 5 min hard. 10 min easy. 20 min maximal: start at 195 W, hold 5 min, then raise it if you can. Resistance mode, not ERG. Edge recording, Whoop HR on. Upload the FIT under Tests.',{key:true,test:'ftp-nov'})],
  '2026-11-14':st=>[S('run','TEST: 5K time trial',40,'Flat course (American Tobacco Trail or a track). 15 min easy, 4 × 20 s strides, 5 km even effort. Record HR. Enter the time under Tests.',{key:true,test:'5k-nov'})],
  '2026-11-15':st=>{const t=T(st);return[S('brick','Bike 90: 2 × 15 sweet spot + run 20',110,`Zone 2 with 2 × 15 min at ${t.W(0.88,0.94)}, then run 20 min easy (${t.easy()}).`,{key:true,intensity:true})]},
- '2026-11-28':st=>{const t=T(st);return[S('bike','TEST: Durability',115,`90 min at ${t.W(0.65,0.70)}, then 20 min maximal. Weigh yourself nude before and after and log every ounce you drink (sweat rate). Upload the FIT under Tests.`,{key:true,test:'dur-nov'})]},
+ '2026-11-28':st=>{const t=T(st);return[S('bike','TEST: Durability',115,`90 min at ${t.W(0.65,0.70)}, then 20 min maximal. Upload the FIT under Tests.`,{key:true,test:'dur-nov'})]},
  '2027-02-06':st=>[S('bike','TEST: 20-min FTP',65,'Same protocol as Nov 7. Upload the FIT under Tests.',{key:true,test:'ftp-feb'})],
  '2027-03-13':st=>{const t=T(st);return[S('bike','TEST: Durability',115,`90 min at ${t.W(0.65,0.70)}, then 20 min maximal.`,{key:true,test:'dur-mar'})]},
  '2027-03-20':st=>[S('bike','TEST: 20-min FTP (Gate 1)',65,'Same protocol as Nov 7.',{key:true,test:'ftp-g1'})],
@@ -79,10 +79,10 @@ const TESTS={
  '2027-05-31':st=>[S('swim','TEST: Swim CSS (pool reopens)',45,'First swim since October. 400 easy, 4 × 50 build. 400 m all-out from a push. 10 min easy. 200 m all-out. CSS /100 m = (T400 − T200) ÷ 2. Enter it under Tests and in Setup.',{test:'css-may'})],
  '2027-06-22':st=>[S('bike','TEST: 20-min FTP (Gate 2)',65,'Same protocol as Nov 7.',{key:true,test:'ftp-g2'})],
  '2027-06-26':st=>[S('run','TEST: 10K time trial (Gate 2)',65,'15 min easy, strides, 10 km even effort.',{key:true,test:'10k-g2'})],
- '2027-08-14':st=>{const t=T(st);return[S('brick','RACE SIM 1',205,`2:45 at ${t.RP()} with race fueling, then 40 min at ${t.rp()}. Practice the full fluid plan.`,{key:true,intensity:true})]},
+ '2027-08-14':st=>{const t=T(st);return[S('brick','RACE SIM 1',205,`2:45 at ${t.RP()} with race fueling, then 40 min at ${t.rp()}. Practice the full race fueling and fluid plan.`,{key:true,intensity:true})]},
  '2027-09-04':st=>{const t=T(st);return[S('brick','RACE SIM 2 (Gate 3)',220,`3:00 at 175–180 W (or ${t.RP()}), then 40 min run at 8:05–8:35/mi. Gate 3 passes if the run holds ≤ 8:45/mi with no cramp.`,{key:true,intensity:true,test:'sim-g3'})]},
  '2027-09-18':st=>{const t=T(st);return[S('brick','RACE SIM 3',220,`3:00 at ${t.RP()}, then 40 min at ${t.rp()}. Last big day.`,{key:true,intensity:true})]},
- '2027-10-16':st=>[S('brick','RACE DAY: IRONMAN 70.3 North Carolina',330,'Swim 34:30 · T1 5:30 · bike 3:03 · T2 3:00 · run 1:44. Ride the power, not the speed. Fluid plan from your sweat-rate test.',{key:true,test:'race'})]
+ '2027-10-16':st=>[S('brick','RACE DAY: IRONMAN 70.3 North Carolina',330,'Swim 34:30 · T1 5:30 · bike 3:03 · T2 3:00 · run 1:44. Ride the power, not the speed. Drink to your practiced fluid plan.',{key:true,test:'race'})]
 };
 
 function blockFor(date){return BLOCKS.find(b=>date>=b.start&&date<=b.end)||null}
@@ -125,7 +125,7 @@ function sessionsFor(date,st){
   case 'b4': {
     const tue=[bikeTh(t,0,'2 × 20 min',0.95,1.0,50,'5 min'),S('bike','Bike 50: over-unders',50,`3 sets of 4 × (2 min at ${t.W(1.03,1.07)} / 2 min at ${t.W(0.88,0.92)}), 4 min easy between sets.`,{key:true,intensity:true}),bikeTh(t,0,'2 × 20 min',0.97,1.02,50,'5 min'),S('bike','Bike 45 easy',45,t.Z2()),bikeTh(t,0,'3 × 15 min',0.98,1.02,55,'4 min'),S('bike','Bike 50: over-unders',50,`3 sets of 4 × (2 min at ${t.W(1.03,1.07)} / 2 min at ${t.W(0.88,0.92)}).`,{key:true,intensity:true}),bikeTh(t,0,'2 × 20 min',0.97,1.02,50,'5 min'),S('bike','Bike 45: openers',45,`Zone 2 with 4 × 1 min at ${t.W(1.0,1.05)}.`)];
     const wed=['hm215','thr55','thr312',null,'hm220','thr64','thr312',null];
-    const sat=[sat90(t,'2 × 30 min',15),sat90(t,'2 × 30 min',15),S('bike','Bike 90: CdA test + race power',90,`Outdoor, flat loop, in position: 3 laps each at 150, 180, 210 W for the CdA field test, then Zone 2. Needs the outdoor power meter.`,{key:true}),S('bike','Bike 75 Zone 2',75,t.Z2()),sat90(t,'2 × 35 min',20,105),sat90(t,'3 × 25 min',20,105),sat90(t,'2 × 40 min',20,110),null];
+    const sat=[sat90(t,'2 × 30 min',15),sat90(t,'2 × 30 min',15),sat90(t,'3 × 25 min',15),S('bike','Bike 75 Zone 2',75,t.Z2()),sat90(t,'2 × 35 min',20,105),sat90(t,'3 × 25 min',20,105),sat90(t,'2 × 40 min',20,110),null];
     const sun=[[80,20],[85,0],[90,20],[60,0],[90,25],[90,0],[90,30],[60,0]];
     const w=pick(wed); const sn=pick(sun);
     return [[REST],[pick(tue)],[w?runQ(t,w,45):easyRun(t,35,true)],[STR_A],[easyRun(t,35,true)],[pick(sat)||S('bike','Bike 60 easy',60,t.Z2())],[longRun(t,sn[0],sn[1]),STR_B]][dow];

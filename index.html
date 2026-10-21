@@ -80,8 +80,8 @@ details summary{cursor:pointer;color:var(--mut);font-size:12px;margin-top:6px}
 <input type="file" id="fit-file" accept=".fit,.FIT" multiple hidden>
 <input type="file" id="csv-file" accept=".csv" multiple hidden>
 <input type="file" id="json-file" accept=".json" hidden>
-<script src="plan.js"></script>
-<script src="fit.js"></script>
+<script src="plan.js?v=4"></script>
+<script src="fit.js?v=4"></script>
 <script>
 "use strict";
 const {BLOCKS,GATES,blockFor,sessionsFor:baseSessions,T,iso,addDays,daysBetween,D}=window.PLAN;
@@ -97,11 +97,9 @@ const PREDS=[
  {id:'hr-nov',date:'2026-11-07',m:'Max HR in FTP test',kind:'bpm',lo:172,hi:184},
  {id:'5k-nov',date:'2026-11-14',m:'5K time trial',kind:'time',lo:22*60+45,hi:25*60+15},
  {id:'dur-nov',date:'2026-11-28',m:'Durability decrement',kind:'pct',lo:4,hi:12},
- {id:'sweat-nov',date:'2026-11-28',m:'Sweat rate (indoor)',kind:'lph',lo:0.8,hi:1.3},
  {id:'ftp-feb',date:'2027-02-06',m:'FTP',kind:'W',lo:205,hi:220},
  {id:'ftp-g1',date:'2027-03-20',m:'Gate 1 FTP',kind:'W',lo:208,hi:222},
  {id:'5k-g1',date:'2027-03-21',m:'Gate 1 5K',kind:'time',lo:22*60+15,hi:23*60+45},
- {id:'cda',date:'2027-04-17',m:'CdA field test',kind:'cda',lo:0.33,hi:0.37},
  {id:'oly-swim',date:'2027-05-15',m:'Olympic swim 1500 m',kind:'time',lo:24*60,hi:28*60,note:'no pool swims since October'},
  {id:'css-may',date:'2027-05-31',m:'Swim CSS (pool reopens)',kind:'css',lo:92,hi:108},
  {id:'oly-bike',date:'2027-05-15',m:'Olympic bike 40 km (flat)',kind:'time',lo:74*60,hi:80*60},
