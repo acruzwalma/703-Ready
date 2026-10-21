@@ -5,6 +5,7 @@
 // 4. Writes everything encrypted to data/ so the app can read it.
 import fs from "node:fs";
 import { seal, open } from "./vault.mjs";
+import { extract } from "./cal.mjs";
 
 const E = process.env;
 for (const ev of ["uncaughtException", "unhandledRejection"]) process.on(ev, e => { console.error("::error::" + (e?.message || e)); process.exit(1); });
@@ -53,34 +54,6 @@ function localDay(iso, offset) {
 }
 
 
-// ── Call schedule from Google Calendar (secret iCal address) ──
-function parseICS(text) {
-  const lines = text.replace(/\r\n[ \t]/g, "").replace(/\n[ \t]/g, "").split(/\r?\n/);
-  const evs = []; let cur = null;
-  for (const ln of lines) {
-    if (ln === "BEGIN:VEVENT") cur = {};
-    else if (ln === "END:VEVENT") { if (cur) evs.push(cur); cur = null; }
-    else if (cur) { const i = ln.indexOf(":"); if (i < 0) continue; const [name] = ln.slice(0, i).split(";"); cur[name] = ln.slice(i + 1); if (name === "DTSTART" || name === "DTEND") cur[name + "_P"] = ln.slice(0, i); }
-  }
-  return evs;
-}
-const icsDate = v => v ? `${v.slice(0, 4)}-${v.slice(4, 6)}-${v.slice(6, 8)}` : null;
-function addDay(d, n) { const t = new Date(d + "T12:00:00Z"); t.setUTCDate(t.getUTCDate() + n); return t.toISOString().slice(0, 10); }
-async function callDays(url, pattern) {
-  const r = await fetch(url); if (!r.ok) throw new Error("calendar link returned " + r.status);
-  const re = new RegExp(pattern, "i"); const out = new Set();
-  for (const e of parseICS(await r.text())) {
-    if (e.STATUS === "CANCELLED") continue;
-    const title = (e.SUMMARY || "").replace(/\\,/g, ",").trim(); if (!re.test(title)) continue;
-    const s = icsDate(e.DTSTART); if (!s) continue;
-    const allDay = /VALUE=DATE/.test(e.DTSTART_P || "") || (e.DTSTART || "").length === 8;
-    let end = e.DTEND ? icsDate(e.DTEND) : addDay(s, 1);
-    if (!allDay) end = addDay(s, 1);            // timed event: count its start day
-    for (let d = s, n = 0; d < end && n < 30; d = addDay(d, 1), n++) out.add(d);
-  }
-  return [...out].sort();
-}
-
 const token = await getAccess();
 const asked = parseInt(E.DAYS) || 4;
 const days = Math.min(code ? Math.max(asked, 120) : asked, 365);   // first connect always backfills 120 days
@@ -125,9 +98,12 @@ if (E.INTERVALS_ATHLETE_ID && E.INTERVALS_API_KEY) {
   } catch (e) { console.log("Intervals.icu skipped: " + e.message); }
 }
 if (E.GCAL_ICS_URL) {
-  console.log("::add-mask::" + E.GCAL_ICS_URL);
-  try { db.calls = await callDays(E.GCAL_ICS_URL, E.CALL_MATCH || "^alex\\s*call"); db.calls_synced = new Date().toISOString(); console.log(`Google Calendar: ${db.calls.length} call days`); }
-  catch (e) { console.log("Google Calendar skipped: " + e.message); }
+  try {
+    const r = await fetch(E.GCAL_ICS_URL); if (!r.ok) throw new Error("calendar link returned " + r.status);
+    const cal = extract(await r.text(), { callPattern: E.CALL_MATCH, udaPattern: E.UDA_MATCH });
+    db.calls = cal.calls; db.cal = { uda: cal.uda, trips: cal.trips, evening: cal.evening }; db.calls_synced = new Date().toISOString();
+    console.log(`Google Calendar: ${cal.calls.length} call days, ${Object.keys(cal.uda).length} UDA shifts, ${cal.trips.length} trips, ${Object.keys(cal.evening).length} evenings with plans`);
+  } catch (e) { console.log("Google Calendar skipped: " + e.message); }
 }
 db.synced_at = new Date().toISOString();
 fs.writeFileSync(DATA, JSON.stringify(await seal(db, PASS)));

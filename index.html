@@ -84,7 +84,7 @@ details summary{cursor:pointer;color:var(--mut);font-size:12px;margin-top:6px}
 <script src="fit.js"></script>
 <script>
 "use strict";
-const {BLOCKS,GATES,blockFor,sessionsFor,T,iso,addDays,daysBetween,D}=window.PLAN;
+const {BLOCKS,GATES,blockFor,sessionsFor:baseSessions,T,iso,addDays,daysBetween,D}=window.PLAN;
 const RACE='2027-10-16';
 const SK='tri-703-v6';
 // Call schedule from the Sam+Alex Google Calendar (pulled Oct 21 2026). Editable in Setup.
@@ -118,7 +118,8 @@ const DEFAULTS={ftp:200,ftpSource:'provisional (HR-derived, untested)',thrPace:4
 
 // ── state ──
 let S={settings:{...DEFAULTS},logs:{},fits:{},actuals:{},imported:{days:{},workouts:{}},updated:0};
-let W={days:{},workouts:{},calls:null}, IV=[], meta={whoop_connected:false,synced_at:null,remote:false,err:null};
+let weekCache={};
+let W={days:{},workouts:{},calls:null,cal:null}, IV=[], meta={whoop_connected:false,synced_at:null,remote:false,err:null};
 let view='today', curDate=iso(new Date()), weekStart=null, msg='';
 function key(){try{return localStorage.getItem('703-key')||''}catch(e){return ''}}
 function lsGet(k){try{return localStorage.getItem(k)||''}catch(e){return ''}}
@@ -137,7 +138,7 @@ async function pull(){
     if(r.status===404){meta.remote=true;meta.whoop_connected=false;meta.err=null;render();return}
     if(!r.ok)throw new Error('GitHub returned '+r.status);
     const d=await openBox(await r.json(),key());
-    W={days:d.days||{},workouts:d.workouts||{},calls:Array.isArray(d.calls)?d.calls:null,calls_synced:d.calls_synced||null};IV=d.intervals||[];meta.synced_at=d.synced_at;meta.whoop_connected=true;meta.remote=true;meta.err=null}
+    W={days:d.days||{},workouts:d.workouts||{},calls:Array.isArray(d.calls)?d.calls:null,calls_synced:d.calls_synced||null,cal:d.cal||null};weekCache={};IV=d.intervals||[];meta.synced_at=d.synced_at;meta.whoop_connected=true;meta.remote=true;meta.err=null}
   catch(e){meta.err=e.name==='OperationError'?'Wrong passphrase: it has to match APP_PASSPHRASE in your GitHub secrets.':'Could not load Whoop data: '+e.message}
   render();
 }
@@ -195,8 +196,52 @@ function doneFor(date){
   (S.fits[date]||[]).forEach(f=>c.push({src:'FIT',type:'bike',min:f.durMin,hr:f.avgHR,w:f.avgP,np:f.NP,label:'FIT upload',fit:f}));
   return c;
 }
+
+// ── Calendar-aware plan: UDA shifts and trips move or swap sessions (agreed Oct 21 2026) ──
+const DN=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const dayName=d=>DN[D(d).getDay()];
+function tripOn(d){const c=W.cal;if(!c)return null;const ign=S.settings.ignoreTrips||[];return (c.trips||[]).find(t=>d>=t.start&&d<=t.end&&!ign.includes(t.title+'|'+t.start))||null}
+const udaOn=d=>W.cal&&W.cal.uda?W.cal.uda[d]||null:null;
+const isRaceS=s=>/^RACE/.test(s.title)||s.test==='race'||s.test==='oly';
+function asRun(s,st){const t=T(st);const m=Math.max(20,Math.min(s.key?85:60,Math.round(s.min*0.6/5)*5));
+  return {type:'run',title:`Run ${m} (swapped from bike)`,min:m,key:s.key,intensity:s.intensity,swapped:true,
+    detail:s.intensity?`Bike session swapped while away. Same idea on foot: warm up, then the hard parts at ${t.thr()} (about the same total hard minutes), easy jog between.`:`Bike session swapped while away. Easy ${t.easy()}.`}}
+function weekPlan(mon){
+  const key=mon+'|'+S.settings.ftp+'|'+S.settings.thrPace+'|'+(S.settings.ignoreTrips||[]).join(',');if(weekCache[key])return weekCache[key];
+  const st=S.settings; const days=[0,1,2,3,4,5,6].map(i=>addDays(mon,i)); const P={};
+  days.forEach(d=>P[d]={sessions:baseSessions(d,st).map(x=>({...x})),notes:[]});
+  const canHost=(d,s)=>!udaOn(d)&&!(tripOn(d)&&(s.type==='bike'||s.type==='brick'));
+  // away: bike → move (key) or run (non-key); strength → bodyweight; swim → only if there's a pool
+  days.forEach(d=>{const t=tripOn(d);if(!t)return;P[d].notes.push(`Away: ${t.title}.`);
+    P[d].sessions=P[d].sessions.map(x=>{if(isRaceS(x))return x;if(x.type==='bike'||x.type==='brick'){if(x.key){x._mv=1;return x}return asRun(x,st)}
+      if(x.type==='strength')return {...x,title:x.title+' (bodyweight)',detail:'Away version: split squats, single-leg RDL, step-downs, push-ups, planks.'};
+      if(x.type==='swim')return {...x,detail:x.detail+' If there is no pool, skip it.'};return x})});
+  days.forEach(d=>{if(!udaOn(d))return;P[d].notes.push(`UDA shift (from ${udaOn(d)}).`);P[d].sessions.forEach(x=>{if(!isRaceS(x)&&x.type!=='rest')x._mv=1})});
+  days.forEach((d,i)=>{
+    const mv=P[d].sessions.filter(x=>x._mv);if(!mv.length)return;P[d].sessions=P[d].sessions.filter(x=>!x._mv);
+    mv.forEach(x=>{delete x._mv;
+      if(!x.key&&udaOn(d)){P[d].notes.push(`${x.title} dropped for the shift.`);return}
+      const wd=D(d).getDay(); let order;
+      if(udaOn(d)&&wd===6) order=(x.min<=45?[addDays(d,-1),addDays(d,1)]:[addDays(d,1),addDays(d,-1)]).concat([addDays(d,-2)]).filter(z=>days.includes(z));      // Sat UDA: short → Friday, long → Sunday
+      else if(udaOn(d)&&wd===0) order=[addDays(d,-2),addDays(d,-1),addDays(d,-3)].filter(z=>days.includes(z)); // Sun UDA → Friday
+      else {const later=days.slice(i+1),earlier=days.slice(0,i).reverse();const free=z=>!P[z].sessions.some(y=>y.key);order=[...later.filter(free),...later,...earlier.filter(free),...earlier]}
+      const tgt=order.find(z=>canHost(z,x));
+      if(!tgt){if(x.type==='bike'||x.type==='brick'){P[d].sessions.push(asRun(x,st));} else P[d].notes.push(`${x.title} dropped this week.`);return}
+      const k=P[tgt].sessions.find(y=>y.key&&!isRaceS(y)&&y.type==='run'&&y.min<=95);   // only a long run gets displaced (to Friday-ish)
+      if(k){const j=days.indexOf(tgt);const o2=[...days.slice(0,j).reverse(),...days.slice(j+1)].filter(z=>z!==d&&!P[z].sessions.some(y=>y.key)&&canHost(z,k));const t2=o2[0];
+        if(t2){P[tgt].sessions=P[tgt].sessions.filter(y=>y!==k);P[t2].sessions=P[t2].sessions.filter(y=>!(y.type==='rest'||(y.type==='run'&&!y.key)));P[t2].sessions.unshift({...k,movedFrom:tgt});P[t2].notes.push(`${k.title} moved here from ${dayName(tgt)} to make room.`)}}
+      P[tgt].sessions=P[tgt].sessions.filter(y=>y.type!=='rest'&&!(y.type===x.type&&!y.key));P[tgt].sessions.unshift({...x,movedFrom:d});
+      P[tgt].notes.push(`${x.title} moved here from ${dayName(d)}.`);P[d].notes.push(`${x.title} moved to ${dayName(tgt)}.`)})});
+  days.forEach(d=>{if(!P[d].sessions.length)P[d].sessions=[{type:'rest',title:'Rest',min:0,detail:udaOn(d)?'Work day. Nothing planned.':'Off.'}];
+    const ev=W.cal&&W.cal.evening?W.cal.evening[d]:null;if(ev&&ev.length)P[d].notes.push(`This evening: ${ev.map(e=>e.t+' '+e.title).join(' · ')}. Train before work if you can.`)});
+  return weekCache[key]=P;
+}
+function mondayOf(d){return addDays(d,-((D(d).getDay()+6)%7))}
+function sessionsFor(date){return weekPlan(mondayOf(date))[date].sessions}
+function notesFor(date){return weekPlan(mondayOf(date))[date].notes}
+
 function matchDay(date){
-  const plan=sessionsFor(date,S.settings).filter(s=>s.type!=='rest'); const cand=doneFor(date); const used=new Set();
+  const plan=sessionsFor(date).filter(s=>s.type!=='rest'); const cand=doneFor(date); const used=new Set();
   // Whoop and Intervals often record the same session: prefer one source per type
   return plan.map((s,i)=>{
     const manual=(S.logs[date]||{})[i];
@@ -231,9 +276,10 @@ function header(){
   ${meta.err?`<div class="err" style="margin-top:8px">${esc(meta.err)}</div>`:''}</div>`;
 }
 function vToday(){
-  const d=curDate, r=rulesFor(d), b=blockFor(d), st=S.settings; const items=matchDay(d); const all=sessionsFor(d,st);
+  const d=curDate, r=rulesFor(d), b=blockFor(d), st=S.settings; const items=matchDay(d); const all=sessionsFor(d);
   const dow=(D(d).getDay()+6)%7; let html=`<div class="row between" style="margin-bottom:10px"><button class="btn sm" data-a="day" data-v="-1">‹</button><div style="font-weight:700">${fd(d)}${d===iso(new Date())?' · today':''}</div><button class="btn sm" data-a="day" data-v="1">›</button></div>`;
   if(isCall(d)) html+=`<div class="banner">On call. ${dow>=5?'Weekend call: do the long sessions indoors (trainer, treadmill) and keep them.':'Weekday call: swap today\'s session with Monday\'s if the day falls apart.'} Your data showed no recovery cost from call nights, so nothing else changes.</div>`;
+  const nts=notesFor(d); if(nts.length) html+=`<div class="banner" style="background:rgba(249,115,22,.08);border-color:rgba(249,115,22,.3);color:#fed7aa">${nts.map(esc).join('<br>')}</div>`;
   const v=r.vals;
   html+=`<div class="zone ${r.zone}"><div class="row between"><div class="zt">${r.zone==='NONE'?'No zone yet':r.zone}</div><div class="tiny faint">Rules v1 · guardrail</div></div>
   <div class="small" style="margin-top:4px">${esc(ACTION[r.zone])}</div><div class="tiny muted" style="margin-top:4px">${r.why.map(esc).join(' · ')}</div>
@@ -244,7 +290,7 @@ function vToday(){
   items.forEach(({s,i,auto,manual})=>{
     const capped=(r.zone==='AMBER'&&s.intensity)||(r.zone==='RED'&&s.type!=='rest');
     const status=manual?.status==='skip'?`<span class="skip">Skipped${manual.note?': '+esc(manual.note):''}</span>`:manual?.status==='done'?`<span class="done">Done${manual.rpe?' · RPE '+manual.rpe:''}${manual.note?' · '+esc(manual.note):''}</span>`:auto?`<span class="done">Done (${auto.src}): ${Math.round(auto.min)} min${auto.hr?' · '+Math.round(auto.hr)+' bpm':''}${auto.np?' · NP '+Math.round(auto.np)+' W':auto.w?' · '+Math.round(auto.w)+' W':''}</span>`:'<span class="faint">Not done yet</span>';
-    html+=`<div class="sess ${s.type}"><div class="t">${esc(s.title)}${s.key?'<span class="tag key">KEY</span>':''}${s.test?'<span class="tag test">TEST</span>':''}${capped?`<span class="tag capped">${r.zone==='RED'?'REST TODAY':'CAP Z2'}</span>`:''}</div>
+    html+=`<div class="sess ${s.type}"><div class="t">${esc(s.title)}${s.key?'<span class="tag key">KEY</span>':''}${s.test?'<span class="tag test">TEST</span>':''}${s.movedFrom?`<span class="tag capped">MOVED FROM ${dayName(s.movedFrom).toUpperCase()}</span>`:''}${s.swapped?'<span class="tag capped">SWAPPED</span>':''}${capped?`<span class="tag capped">${r.zone==='RED'?'REST TODAY':'CAP Z2'}</span>`:''}</div>
     <div class="d">${esc(s.detail)}</div>${capped?`<div class="d" style="color:var(--amber)">${r.zone==='RED'?'Red: rest, or 30 min Zone 1.':`Amber: same ${s.min} min, all of it at ${T(st).Z2()} or easy pace. Move this key session to tomorrow if you can.`}</div>`:''}
     <div class="st">${status}</div>
     <div class="row wrap" style="margin-top:8px;gap:6px"><button class="btn sm ok" data-a="done" data-i="${i}">Done</button><button class="btn sm" data-a="skip" data-i="${i}">Skip</button><button class="btn sm" data-a="note" data-i="${i}">RPE / note</button>${manual?`<button class="btn sm" data-a="clear" data-i="${i}">Clear</button>`:''}</div></div>`;
@@ -255,9 +301,9 @@ function vToday(){
 function vPlan(){
   const today=iso(new Date()); if(!weekStart){const t=D(curDate);const m=addDays(curDate,-((t.getDay()+6)%7));weekStart=m}
   let planned=0,done=0; let cells='';
-  for(let i=0;i<7;i++){const d=addDays(weekStart,i);const ss=sessionsFor(d,S.settings).filter(s=>s.type!=='rest');const mm=matchDay(d);
+  for(let i=0;i<7;i++){const d=addDays(weekStart,i);const ss=sessionsFor(d).filter(s=>s.type!=='rest');const mm=matchDay(d);
     ss.forEach(s=>planned+=s.min); mm.forEach(x=>{if(x.manual?.status==='done')done+=x.s.min;else if(x.auto&&x.manual?.status!=='skip')done+=Math.min(x.auto.min||0,x.s.min*1.5)});
-    cells+=`<div class="day ${d===today?'today':''} ${isCall(d)?'call':''}" data-a="goto" data-v="${d}"><div class="dn">${D(d).toLocaleDateString('en-US',{weekday:'narrow'})} ${D(d).getDate()}${isCall(d)?' ☎':''}</div>${mm.map(x=>`<span class="dot ${x.manual?.status==='done'||x.auto?'ok':''}" style="background:${TYPEC[x.s.type]}">${esc(x.s.title.replace(/^(Bike|Run|Swim|Long run|Long ride|TEST:|RACE:)\s*/,''))}</span>`).join('')}</div>`}
+    cells+=`<div class="day ${d===today?'today':''} ${isCall(d)?'call':''}" data-a="goto" data-v="${d}"><div class="dn">${D(d).toLocaleDateString('en-US',{weekday:'narrow'})} ${D(d).getDate()}${isCall(d)?' ☎':''}${udaOn(d)?' 🦷':''}${tripOn(d)?' ✈︎':''}</div>${mm.map(x=>`<span class="dot ${x.manual?.status==='done'||x.auto?'ok':''}" style="background:${TYPEC[x.s.type]}">${esc(x.s.title.replace(/^(Bike|Run|Swim|Long run|Long ride|TEST:|RACE:)\s*/,''))}</span>`).join('')}</div>`}
   const b=blockFor(weekStart)||blockFor(addDays(weekStart,6));
   let html=`<div class="card"><div class="row between"><button class="btn sm" data-a="wk" data-v="-7">‹</button><div style="font-weight:700">Week of ${fd(weekStart)}</div><button class="btn sm" data-a="wk" data-v="7">›</button></div>
   <div class="tiny muted" style="margin:6px 0 8px">${b?esc(b.name)+' — '+esc(b.focus):''}</div><div class="week">${cells}</div>
@@ -305,6 +351,9 @@ function vTests(){
   <div class="card"><h3>Predictions on record <span class="tiny faint">${inr}/${hits.length} in range so far</span></h3><div class="tiny muted" style="margin-bottom:6px">Written Oct 21 2026, before each event. Enter the result; a miss says which part of the model is wrong.</div>
   <div style="overflow-x:auto"><table><tr><th>Date</th><th>Measure</th><th>Predicted</th><th>Actual</th><th></th></tr>${rows}</table></div></div>`;
 }
+function calExtras(){if(!W.cal)return '';const today=iso(new Date());const u=Object.keys(W.cal.uda||{}).filter(d=>d>=today).sort().slice(0,6);const ign=S.settings.ignoreTrips||[];const tr=(W.cal.trips||[]).filter(t=>t.end>=today).slice(0,8);
+  return `<div class="tiny muted" style="margin-top:8px">UDA shifts: ${esc(u.map(fd).join(' · ')||'none')}. Their sessions move (Saturday → Sunday, and the long run → Friday).</div>
+  <div class="tiny muted" style="margin-top:8px">Trips (bike sessions swap to runs or move home):</div>${tr.length?tr.map(t=>{const k=t.title+'|'+t.start;const off=ign.includes(k);return `<div class="row between tiny" style="margin-top:4px"><span style="${off?'text-decoration:line-through;opacity:.5':''}">${esc(t.title)} · ${fd(t.start)} – ${fd(t.end)}</span><button class="btn sm" data-a="togtrip" data-v="${esc(k)}">${off?'Count it':'Not a trip'}</button></div>`}).join(''):'<div class="tiny faint">none found</div>'}`}
 function vSetup(){
   const st=S.settings;
   return `<div class="card"><h3>Connection</h3><div class="small muted" style="margin-bottom:8px">GitHub pulls your Whoop data every morning at 7. The passphrase has to match <b>APP_PASSPHRASE</b> in your repo's secrets. It stays on this device.</div>
@@ -317,7 +366,7 @@ function vSetup(){
   <div class="card"><h3>Thresholds <span class="tiny faint">${esc(st.ftpSource||'')}</span></h3><div class="grid3">
   ${[['ftp','FTP (W)'],['thrPaceTxt','Threshold pace (/mi)'],['cssTxt','CSS (/100 m)'],['lthr','LTHR (bpm)'],['rhr','Resting HR'],['hrmaxRun','Max HR run']].map(([k,l])=>`<label class="tiny muted">${l}<input data-set="${k}" value="${k==='thrPaceTxt'?mmss(st.thrPace):k==='cssTxt'?mmss(st.css):st[k]}"></label>`).join('')}</div>
   <div class="tiny muted" style="margin-top:6px">Every target in the plan is computed from these. After the 5K, threshold pace ≈ 5K pace + 20–25 s/mi.</div></div>
-  <div class="card"><h3>Call schedule</h3>${W.calls?`<div class="small">Synced from Google Calendar: <b>${W.calls.filter(d=>d>=iso(new Date())).length}</b> upcoming call days${W.calls_synced?' · updated '+new Date(W.calls_synced).toLocaleDateString('en-US',{month:'short',day:'numeric'}):''}.</div><div class="tiny muted" style="margin-top:4px">Next: ${esc(W.calls.filter(d=>d>=iso(new Date())).slice(0,6).map(d=>fd(d)).join(' · ')||'none')}</div>`:`<div class="small muted" style="margin-bottom:6px">Not synced from Google Calendar yet (add the GCAL_ICS_URL secret). Manual list:</div><textarea id="calls" rows="3" class="mono tiny">${esc((st.callDays||[]).join(', '))}</textarea><button class="btn sm" style="margin-top:6px" data-a="savecalls">Save call days</button>`}</div>
+  <div class="card"><h3>Calendar</h3>${W.calls?`<div class="small">Synced from Google Calendar: <b>${W.calls.filter(d=>d>=iso(new Date())).length}</b> upcoming call days${W.calls_synced?' · updated '+new Date(W.calls_synced).toLocaleDateString('en-US',{month:'short',day:'numeric'}):''}.</div><div class="tiny muted" style="margin-top:4px">Next: ${esc(W.calls.filter(d=>d>=iso(new Date())).slice(0,6).map(d=>fd(d)).join(' · ')||'none')}</div>+calExtras()+`:`<div class="small muted" style="margin-bottom:6px">Not synced from Google Calendar yet (add the GCAL_ICS_URL secret). Manual list:</div><textarea id="calls" rows="3" class="mono tiny">${esc((st.callDays||[]).join(', '))}</textarea><button class="btn sm" style="margin-top:6px" data-a="savecalls">Save call days</button>`}</div>
   <div class="card"><h3>Import and backup</h3><div class="small muted" style="margin-bottom:8px">No server? Import Whoop's CSV export (physiological_cycles.csv and workouts.csv) to run the rules and the load chart offline.</div>
   <div class="row wrap" style="gap:6px"><button class="btn" data-a="csv">Import Whoop CSVs</button><button class="btn" data-a="export">Export backup</button><button class="btn" data-a="import">Restore backup</button><button class="btn" data-a="reset">Reset</button></div></div>`;
 }
@@ -342,11 +391,12 @@ document.addEventListener('click',async e=>{
   else if(a==='csv'){document.getElementById('csv-file').click();return}
   else if(a==='import'){document.getElementById('json-file').click();return}
   else if(a==='setftp'){const f=S.fits[el.dataset.d][+el.dataset.j];const ftp=Math.round(f.b20*0.95);S.settings.ftp=ftp;S.settings.ftpSource='tested '+el.dataset.d;
-    const p=PREDS.find(p=>p.kind==='W'&&p.date===el.dataset.d);if(p)S.actuals[p.id]=ftp; const hp=PREDS.find(p=>p.kind==='bpm'&&p.date===el.dataset.d);if(hp&&f.maxHR)S.actuals[hp.id]=f.maxHR; save()}
+    const near=p=>Math.abs(daysBetween(p.date,el.dataset.d))<=3; const p=PREDS.find(p=>p.kind==='W'&&near(p));if(p)S.actuals[p.id]=ftp; const hp=PREDS.find(p=>p.kind==='bpm'&&near(p));if(hp&&f.maxHR)S.actuals[hp.id]=f.maxHR; save()}
   else if(a==='delfit'){S.fits[el.dataset.d].splice(+el.dataset.j,1);if(!S.fits[el.dataset.d].length)delete S.fits[el.dataset.d];save()}
   else if(a==='savekey'){try{localStorage.setItem('703-key',document.getElementById('k').value.trim());localStorage.setItem('703-cid',document.getElementById('cid').value.trim())}catch(e){}msg='Saved';await pull();return}
   else if(a==='connect'){connectWhoop();return}
   else if(a==='pull'){await pull();return}
+  else if(a==='togtrip'){const L=S.settings.ignoreTrips=S.settings.ignoreTrips||[];const k=v;const ix=L.indexOf(k);if(ix>=0)L.splice(ix,1);else L.push(k);weekCache={};save()}
   else if(a==='savecalls'){S.settings.callDays=document.getElementById('calls').value.split(/[\s,]+/).filter(x=>/^\d{4}-\d\d-\d\d$/.test(x)).sort();save()}
   else if(a==='export'){const b=new Blob([JSON.stringify(S,null,2)],{type:'application/json'});const l=document.createElement('a');l.href=URL.createObjectURL(b);l.download='703ready-v2-'+iso(new Date())+'.json';l.click();return}
   else if(a==='reset'){if(confirm('Delete all app data on this device?')){S={settings:{...DEFAULTS},logs:{},fits:{},actuals:{},imported:{days:{},workouts:{}},updated:0};save()}}
