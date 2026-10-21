@@ -51,7 +51,7 @@ function bikeTh(t,n,reps,lo,hi,min=45,rest){return S('bike',`Bike ${min}: ${reps
 function sat90(t,blocks,runOff,min=90){return S('bike',`Bike ${min}: ${blocks} race power`,min,`Steady Zone 2 (${t.Z2()}) with ${blocks} at ${t.RP()}. In the aero position from December.${runOff?` Then run ${runOff} min at ${t.rp()}.`:''}`,{key:true,intensity:true,brick:!!runOff})}
 const STR_A=S('strength','Strength A',40,'Trap-bar deadlift 4×5 @ 80–85% 1RM · RFE split squat 3×6–8/leg · eccentric step-down 3×10/leg (3 s down) · seated calf raise 3×12–15 · Copenhagen plank 3×20–30 s');
 const STR_B=S('strength','Strength B',20,'Hip thrust 3×8–12 · single-leg RDL 3×8/leg · lateral band walk 3×15 · Pallof press 3×10 · side plank 3×30–45 s · swim dryland: band pull-aparts 2×15, straight-arm band pulldowns 2×12');
-const REST=S('rest','Rest',0,'Off, or 10 min mobility.');
+const REST=S('rest','Rest',0,'Off. Wednesday is date night.');
 function easyRun(t,min,strides){return S('run',`Run ${min} easy`,min,`Easy ${t.easy()}${strides?' + 4–6 × 20 s strides':''}.`)}
 function longRun(t,min,rpMin){return S('run',`Long run ${min}`,min,`Easy ${t.easy()}${rpMin?`; last ${rpMin} min at ${t.rp()}`:''}.`,{key:true})}
 function runQ(t,kind,min=40){
@@ -75,8 +75,9 @@ const TESTS={
  '2027-03-13':st=>{const t=T(st);return[S('bike','TEST: Durability',115,`90 min at ${t.W(0.65,0.70)}, then 20 min maximal.`,{key:true,test:'dur-mar'})]},
  '2027-03-20':st=>[S('bike','TEST: 20-min FTP (Gate 1)',65,'Same protocol as Nov 7.',{key:true,test:'ftp-g1'})],
  '2027-03-21':st=>[S('run','TEST: 5K time trial (Gate 1)',40,'Same protocol as Nov 14.',{key:true,test:'5k-g1'})],
+ '2027-04-05':st=>{const t=T(st);return[S('run','Run 35: openers',35,`Easy ${t.easy()} with 4 × 1 min at ${t.rp()}.`)]},
  '2027-04-06':st=>{const t=T(st);return[S('bike','Bike 45: race-week openers',45,`Zone 2 with 3 × 3 min at ${t.RP()}. Race Saturday.`)]},
- '2027-04-07':st=>{const t=T(st);return[S('run','Run 35: openers',35,`Easy ${t.easy()} with 4 × 1 min at ${t.rp()}.`)]},
+ '2027-04-07':st=>[S('rest','Rest',0,'Date night.')],
  '2027-04-08':st=>[S('strength','Light strength',25,'Half of Strength A at light weights. No heavy deadlifts in race week.')],
  '2027-04-09':st=>{const t=T(st);return[S('brick','Pre-race: bike 25 + run 10',35,`Easy spin with 3 × 1 min at ${t.RP()}, then a 10 min jog. Pack the night before; Pinehurst is about 1 h 15 from Durham.`)]},
  '2027-04-10':st=>[S('brick','RACE: Pinehurst Triathlon Festival (International)',150,'Olympic-style distance at Pinehurst Marina, International start 8:45 am. Rolling, "challenging" bike: ride by power (0.88 × FTP), not speed. Cold April lake and no pool swims since October: wear the wetsuit, start wide and swim the first 400 m relaxed. Enter splits under Tests.',{key:true,test:'oly'})],
@@ -92,9 +93,8 @@ const TESTS={
 
 function blockFor(date){return BLOCKS.find(b=>date>=b.start&&date<=b.end)||null}
 
-function sessionsFor(date,st){
+function templateFor(date,st){
   const t=T(st); const b=blockFor(date); if(!b) return [];
-  if(TESTS[date]) return TESTS[date](st).filter(Boolean);
   const wk=Math.floor(daysBetween(b.start,date)/7); const dow=(D(date).getDay()+6)%7; // 0=Mon
   const pick=(arr)=>arr[Math.min(wk,arr.length-1)];
   switch(b.id){
@@ -158,6 +158,22 @@ function sessionsFor(date,st){
     return [[S('swim','Swim 30 easy',30,'With 4 × 50 at race effort.')],[S('bike','Bike 40: openers',40,`Zone 2 with 3 × 2 min at ${t.RP()}.`)],[easyRun(t,30,true)],[S('swim','Swim 20 + bike 20',40,'Short and easy. Pack your bags.')],[S('bike','Bike 20 + run 10',30,'Check the bike, two short race-pace efforts. Rack the bike.')],[],[]][dow];
   }}
   return [];
+}
+// Wednesday is date night: if a week has a rest day, it goes on Wednesday.
+// Standard weeks (Mon rest, Thu strength): Mon ← strength, Wed ← rest, Thu ← the quality run.
+// Other weeks: the rest day simply trades places with Wednesday.
+const isRestDay=ss=>ss.length>0&&ss.every(s=>s.type==='rest');
+function sessionsFor(date,st){
+  if(TESTS[date]) return TESTS[date](st).filter(Boolean);
+  if(!blockFor(date)) return [];
+  const dow=(D(date).getDay()+6)%7, mon=addDays(date,-dow);
+  const week=[0,1,2,3,4,5,6].map(i=>templateFor(addDays(mon,i),st));
+  const rest=week.map((ss,i)=>isRestDay(ss)?i:-1).filter(i=>i>=0);
+  if(!rest.length||rest.includes(2)) return week[dow];
+  let map=[0,1,2,3,4,5,6];
+  if(rest.includes(0)&&week[3].some(s=>s.type==='strength')) map=[3,1,0,2,4,5,6];
+  else {const r=rest[0]; map[2]=r; map[r]=2;}
+  return week[map[dow]];
 }
 window.PLAN={BLOCKS,GATES,blockFor,sessionsFor,T,iso,addDays,daysBetween,D};
 })();

@@ -82,7 +82,7 @@ details summary{cursor:pointer;color:var(--mut);font-size:12px;margin-top:6px}
 <input type="file" id="fit-file" accept=".fit,.FIT" multiple hidden>
 <input type="file" id="csv-file" accept=".csv" multiple hidden>
 <input type="file" id="json-file" accept=".json" hidden>
-<script src="plan.js?v=4"></script>
+<script src="plan.js?v=5"></script>
 <script src="fit.js?v=4"></script>
 <script>
 "use strict";
@@ -279,7 +279,7 @@ function header(){
 function vToday(){
   const d=curDate, r=rulesFor(d), b=blockFor(d), st=S.settings; const items=matchDay(d); const all=sessionsFor(d);
   const dow=(D(d).getDay()+6)%7; let html=`<div class="row between" style="margin-bottom:10px"><button class="btn sm" data-a="day" data-v="-1">‹</button><div style="font-weight:700">${fd(d)}${d===iso(new Date())?' · today':''}</div><button class="btn sm" data-a="day" data-v="1">›</button></div>`;
-  if(isCall(d)) html+=`<div class="banner">On call. ${dow>=5?'Weekend call: do the long sessions indoors (trainer, treadmill) and keep them.':'Weekday call: swap today\'s session with Monday\'s if the day falls apart.'} Your data showed no recovery cost from call nights, so nothing else changes.</div>`;
+  if(isCall(d)) html+=`<div class="banner">On call. ${dow>=5?'Weekend call: do the long sessions indoors (trainer, treadmill) and keep them.':'Weekday call: if the day falls apart, do today\'s session the next morning you can (not Wednesday).'} Your data showed no recovery cost from call nights, so nothing else changes.</div>`;
   const nts=notesFor(d); if(nts.length) html+=`<div class="banner" style="background:rgba(249,115,22,.08);border-color:rgba(249,115,22,.3);color:#fed7aa">${nts.map(esc).join('<br>')}</div>`;
   const v=r.vals;
   html+=`<div class="zone ${r.zone}"><div class="row between"><div class="zt">${r.zone==='NONE'?'No zone yet':r.zone}</div><div class="tiny faint">Rules v1 · guardrail</div></div>
