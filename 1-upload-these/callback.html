@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Connect Whoop</title>
+<style>body{font-family:-apple-system,system-ui,sans-serif;background:#0c1220;color:#e2e8f0;margin:0;padding:24px 16px;line-height:1.5}
+.box{max-width:520px;margin:0 auto}code{display:block;word-break:break-all;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:12px;font-size:15px;margin:12px 0}
+button,a.b{display:inline-block;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;border:none;border-radius:10px;padding:12px 16px;font-size:15px;font-weight:600;text-decoration:none;margin:6px 6px 0 0}
+ol{padding-left:20px}li{margin-bottom:8px}.err{color:#fca5a5}</style></head>
+<body><div class="box" id="b"></div>
+<script>
+const q=new URLSearchParams(location.search), code=q.get('code'), err=q.get('error');
+const parts=location.pathname.split('/').filter(Boolean); const owner=location.hostname.split('.')[0]; const repo=parts[0]||'';
+const wf=`https://github.com/${owner}/${repo}/actions/workflows/sync.yml`;
+const b=document.getElementById('b');
+if(err){b.innerHTML=`<h2>Whoop said: ${err}</h2><p class="err">${q.get('error_description')||''}</p><p><a class="b" href="./">Back to the app</a></p>`}
+else if(!code){b.innerHTML='<h2>No code here</h2><p>Start from the app: Setup → Connect Whoop.</p><p><a class="b" href="./">Back to the app</a></p>'}
+else{b.innerHTML=`<h2>Almost done: one copy-paste</h2><p>Whoop gave you this one-time code. It expires in about 10 minutes.</p><code id="c">${code.replace(/[<>&"]/g,'')}</code>
+<button id="cp">Copy code</button>
+<ol><li>Tap <b>Open GitHub Actions</b> below.</li><li>Tap <b>Run workflow</b> (top right of the run list).</li><li>Paste the code into the first box, leave the rest, and tap the green <b>Run workflow</b>.</li><li>Wait about a minute for the green check. Then open the app; your data is there.</li></ol>
+<a class="b" href="${wf}" target="_blank">Open GitHub Actions</a>`;
+document.getElementById('cp').onclick=async()=>{try{await navigator.clipboard.writeText(code);document.getElementById('cp').textContent='Copied ✓'}catch(e){alert('Long-press the code to copy it')}}}
+</script></body></html>
