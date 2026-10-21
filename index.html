@@ -88,7 +88,8 @@ const {BLOCKS,GATES,blockFor,sessionsFor,T,iso,addDays,daysBetween,D}=window.PLA
 const RACE='2027-10-16';
 const SK='tri-703-v6';
 // Call schedule from the Sam+Alex Google Calendar (pulled Oct 21 2026). Editable in Setup.
-const CALL_DAYS=['2026-10-21','2026-10-23','2026-10-24','2026-10-25','2026-11-04','2026-11-12','2026-11-16','2026-11-20','2026-11-21','2026-11-22','2026-12-02','2026-12-09','2026-12-15','2026-12-18','2026-12-19','2026-12-20','2026-12-23','2026-12-30','2027-01-08','2027-01-09','2027-01-10','2027-01-14','2027-01-20','2027-01-26','2027-02-01','2027-02-04','2027-02-17','2027-02-24','2027-03-02','2027-03-10','2027-03-22','2027-03-26','2027-03-27','2027-03-28','2027-04-07','2027-04-13','2027-04-20','2027-04-23','2027-04-24','2027-04-25','2027-05-03','2027-05-05','2027-05-11','2027-05-18','2027-05-20','2027-06-04','2027-06-05','2027-06-06'];
+// Call days now come from your Google Calendar via the daily sync (encrypted). This list is only a manual fallback.
+const CALL_DAYS=[];
 // Predictions on record (written Oct 21 2026). kind: W, bpm, pct, lph, time (mm:ss or h:mm:ss), pace (/mi), css (/100m), cda
 const PREDS=[
  {id:'css-nov',date:'2026-11-01',m:'Swim CSS',kind:'css',lo:90,hi:102},
@@ -117,7 +118,7 @@ const DEFAULTS={ftp:200,ftpSource:'provisional (HR-derived, untested)',thrPace:4
 
 // ── state ──
 let S={settings:{...DEFAULTS},logs:{},fits:{},actuals:{},imported:{days:{},workouts:{}},updated:0};
-let W={days:{},workouts:{}}, IV=[], meta={whoop_connected:false,synced_at:null,remote:false,err:null};
+let W={days:{},workouts:{},calls:null}, IV=[], meta={whoop_connected:false,synced_at:null,remote:false,err:null};
 let view='today', curDate=iso(new Date()), weekStart=null, msg='';
 function key(){try{return localStorage.getItem('703-key')||''}catch(e){return ''}}
 function lsGet(k){try{return localStorage.getItem(k)||''}catch(e){return ''}}
@@ -136,7 +137,7 @@ async function pull(){
     if(r.status===404){meta.remote=true;meta.whoop_connected=false;meta.err=null;render();return}
     if(!r.ok)throw new Error('GitHub returned '+r.status);
     const d=await openBox(await r.json(),key());
-    W={days:d.days||{},workouts:d.workouts||{}};IV=d.intervals||[];meta.synced_at=d.synced_at;meta.whoop_connected=true;meta.remote=true;meta.err=null}
+    W={days:d.days||{},workouts:d.workouts||{},calls:Array.isArray(d.calls)?d.calls:null,calls_synced:d.calls_synced||null};IV=d.intervals||[];meta.synced_at=d.synced_at;meta.whoop_connected=true;meta.remote=true;meta.err=null}
   catch(e){meta.err=e.name==='OperationError'?'Wrong passphrase: it has to match APP_PASSPHRASE in your GitHub secrets.':'Could not load Whoop data: '+e.message}
   render();
 }
@@ -215,7 +216,8 @@ function parseVal(k,str){str=(str||'').trim();if(!str)return null;
 const rangeTxt=p=>{const u={W:' W',bpm:' bpm',pct:'%',lph:' L/h',css:'/100m',pace:'/mi'}[p.kind]||'';const n=v=>p.kind==='W'||p.kind==='bpm'?Math.round(v):p.kind==='pct'?v:p.kind==='lph'?v.toFixed(1):p.kind==='cda'?v.toFixed(2):mmss(v);return n(p.lo)+'–'+n(p.hi)+u};
 const fd=s=>D(s).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const isCall=d=>(S.settings.callDays||[]).includes(d);
+const callList=()=>W.calls||S.settings.callDays||[];
+const isCall=d=>callList().includes(d);
 const TYPEC={swim:'var(--swim)',bike:'var(--bike)',run:'var(--run)',brick:'var(--brick)',strength:'var(--str)',rest:'var(--rest)'};
 
 // ── views ──
@@ -315,7 +317,7 @@ function vSetup(){
   <div class="card"><h3>Thresholds <span class="tiny faint">${esc(st.ftpSource||'')}</span></h3><div class="grid3">
   ${[['ftp','FTP (W)'],['thrPaceTxt','Threshold pace (/mi)'],['cssTxt','CSS (/100 m)'],['lthr','LTHR (bpm)'],['rhr','Resting HR'],['hrmaxRun','Max HR run']].map(([k,l])=>`<label class="tiny muted">${l}<input data-set="${k}" value="${k==='thrPaceTxt'?mmss(st.thrPace):k==='cssTxt'?mmss(st.css):st[k]}"></label>`).join('')}</div>
   <div class="tiny muted" style="margin-top:6px">Every target in the plan is computed from these. After the 5K, threshold pace ≈ 5K pace + 20–25 s/mi.</div></div>
-  <div class="card"><h3>Call schedule</h3><textarea id="calls" rows="3" class="mono tiny">${esc((st.callDays||[]).join(', '))}</textarea><button class="btn sm" style="margin-top:6px" data-a="savecalls">Save call days</button></div>
+  <div class="card"><h3>Call schedule</h3>${W.calls?`<div class="small">Synced from Google Calendar: <b>${W.calls.filter(d=>d>=iso(new Date())).length}</b> upcoming call days${W.calls_synced?' · updated '+new Date(W.calls_synced).toLocaleDateString('en-US',{month:'short',day:'numeric'}):''}.</div><div class="tiny muted" style="margin-top:4px">Next: ${esc(W.calls.filter(d=>d>=iso(new Date())).slice(0,6).map(d=>fd(d)).join(' · ')||'none')}</div>`:`<div class="small muted" style="margin-bottom:6px">Not synced from Google Calendar yet (add the GCAL_ICS_URL secret). Manual list:</div><textarea id="calls" rows="3" class="mono tiny">${esc((st.callDays||[]).join(', '))}</textarea><button class="btn sm" style="margin-top:6px" data-a="savecalls">Save call days</button>`}</div>
   <div class="card"><h3>Import and backup</h3><div class="small muted" style="margin-bottom:8px">No server? Import Whoop's CSV export (physiological_cycles.csv and workouts.csv) to run the rules and the load chart offline.</div>
   <div class="row wrap" style="gap:6px"><button class="btn" data-a="csv">Import Whoop CSVs</button><button class="btn" data-a="export">Export backup</button><button class="btn" data-a="import">Restore backup</button><button class="btn" data-a="reset">Reset</button></div></div>`;
 }

@@ -36,6 +36,7 @@ jobs:
           WHOOP_CLIENT_SECRET: ${{ secrets.WHOOP_CLIENT_SECRET }}
           INTERVALS_ATHLETE_ID: ${{ secrets.INTERVALS_ATHLETE_ID }}
           INTERVALS_API_KEY: ${{ secrets.INTERVALS_API_KEY }}
+          GCAL_ICS_URL: ${{ secrets.GCAL_ICS_URL }}
           CODE: ${{ github.event.inputs.code }}
           DAYS: ${{ github.event.inputs.days }}
       - name: Save the encrypted data
