@@ -51,7 +51,7 @@ function bikeTh(t,n,reps,lo,hi,min=45,rest){return S('bike',`Bike ${min}: ${reps
 function sat90(t,blocks,runOff,min=90){return S('bike',`Bike ${min}: ${blocks} race power`,min,`Steady Zone 2 (${t.Z2()}) with ${blocks} at ${t.RP()}. In the aero position from December.${runOff?` Then run ${runOff} min at ${t.rp()}.`:''}`,{key:true,intensity:true,brick:!!runOff})}
 const STR_A=S('strength','Strength A',40,'Trap-bar deadlift 4×5 @ 80–85% 1RM · RFE split squat 3×6–8/leg · eccentric step-down 3×10/leg (3 s down) · seated calf raise 3×12–15 · Copenhagen plank 3×20–30 s');
 const STR_B=S('strength','Strength B',20,'Hip thrust 3×8–12 · single-leg RDL 3×8/leg · lateral band walk 3×15 · Pallof press 3×10 · side plank 3×30–45 s · swim dryland: band pull-aparts 2×15, straight-arm band pulldowns 2×12');
-const REST=S('rest','Rest',0,'Off. Wednesday is date night.');
+const REST=S('rest','Rest',0,'Off.');
 function easyRun(t,min,strides){return S('run',`Run ${min} easy`,min,`Easy ${t.easy()}${strides?' + 4–6 × 20 s strides':''}.`)}
 function longRun(t,min,rpMin){return S('run',`Long run ${min}`,min,`Easy ${t.easy()}${rpMin?`; last ${rpMin} min at ${t.rp()}`:''}.`,{key:true})}
 function runQ(t,kind,min=40){
