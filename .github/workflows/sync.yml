@@ -2,7 +2,13 @@ name: Sync Whoop
 
 on:
   schedule:
-    - cron: "0 11 * * *"   # every day, 7:00 am Eastern (6:00 in winter)
+    # GitHub runs scheduled jobs late, sometimes by hours, and top-of-the-hour slots are the
+    # most delayed. Four runs a day at :37 keep the app fresh. Times are UTC; Eastern is 4 h
+    # behind (5 h in winter): about 6:37 am, 8:37 am, 11:37 am and 6:37 pm.
+    - cron: "37 10 * * *"
+    - cron: "37 12 * * *"
+    - cron: "37 15 * * *"
+    - cron: "37 22 * * *"
   workflow_dispatch:
     inputs:
       code:
