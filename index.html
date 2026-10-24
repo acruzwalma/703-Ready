@@ -128,14 +128,18 @@ function load(){try{const d=localStorage.getItem(SK);if(d){const p=JSON.parse(d)
 function save(){S.updated=Date.now();try{localStorage.setItem(SK,JSON.stringify(S))}catch(e){}}
 // Where the app lives on GitHub Pages: https://<owner>.github.io/<repo>/
 const GH=(()=>{const h=location.hostname;if(!h.endsWith('.github.io'))return null;const owner=h.split('.')[0];const repo=location.pathname.split('/').filter(Boolean)[0]||'';
-  return {owner,repo,raw:`https://raw.githubusercontent.com/${owner}/${repo}/main/data/whoop.enc.json`,wf:`https://github.com/${owner}/${repo}/actions/workflows/sync.yml`,redirect:`https://${h}/${repo}/callback.html`}})();
+  return {owner,repo,raw:`https://raw.githubusercontent.com/${owner}/${repo}/main/data/whoop.enc.json`,api:`https://api.github.com/repos/${owner}/${repo}/contents/data/whoop.enc.json?ref=main`,wf:`https://github.com/${owner}/${repo}/actions/workflows/sync.yml`,redirect:`https://${h}/${repo}/callback.html`}})();
 async function openBox(box,pass){const te=new TextEncoder();const ub=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
   const base=await crypto.subtle.importKey('raw',te.encode(pass),'PBKDF2',false,['deriveKey']);
   const k=await crypto.subtle.deriveKey({name:'PBKDF2',salt:ub(box.salt),iterations:200000,hash:'SHA-256'},base,{name:'AES-GCM',length:256},false,['decrypt']);
   return JSON.parse(new TextDecoder().decode(await crypto.subtle.decrypt({name:'AES-GCM',iv:ub(box.iv)},k,ub(box.ct))))}
+let lastPull=0;
 async function pull(){
   if(!GH||!key()){meta.remote=false;render();return}
-  try{const r=await fetch(GH.raw+'?t='+Date.now(),{cache:'no-store'});
+  lastPull=Date.now();
+  try{// GitHub's API serves the newest file right away; the raw link can lag a few minutes behind a sync
+    let r=await fetch(GH.api,{cache:'no-store',headers:{Accept:'application/vnd.github.raw'}}).catch(()=>null);
+    if(!r||(!r.ok&&r.status!==404)) r=await fetch(GH.raw+'?t='+Date.now(),{cache:'no-store'});
     if(r.status===404){meta.remote=true;meta.whoop_connected=false;meta.err=null;render();return}
     if(!r.ok)throw new Error('GitHub returned '+r.status);
     const d=await openBox(await r.json(),key());
@@ -293,7 +297,7 @@ function header(){
   const sync=meta.synced_at?'Whoop synced '+new Date(meta.synced_at).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):(key()?'Whoop not synced yet':'Offline mode');
   return `<div class="hdr"><div class="hdr-top"><div><div class="logo">70.3 READY</div><div class="sub">IRONMAN 70.3 NC · OCT 16, 2027 · TARGET 5:30</div></div>
   <div class="cnt"><div class="cnt-n">${dtr}</div><div class="cnt-l">days to go</div></div></div>
-  <div class="chips"><span class="chip">${b?esc(b.name):'Off plan'}</span><span class="chip ${r.zone==='GREEN'?'g':r.zone==='AMBER'?'a':r.zone==='RED'?'r':''}">Today: ${r.zone==='NONE'?'no zone yet':r.zone.toLowerCase()}</span><span class="chip">FTP ${S.settings.ftp} W</span><span class="chip">${esc(sync)}</span>${isCall(today)?'<span class="chip">On call</span>':''}</div>
+  <div class="chips"><span class="chip">${b?esc(b.name):'Off plan'}</span><span class="chip ${r.zone==='GREEN'?'g':r.zone==='AMBER'?'a':r.zone==='RED'?'r':''}">Today: ${r.zone==='NONE'?'no zone yet':r.zone.toLowerCase()}</span><span class="chip">FTP ${S.settings.ftp} W</span><span class="chip" data-a="pull" style="cursor:pointer">${esc(sync)} ↻</span>${isCall(today)?'<span class="chip">On call</span>':''}</div>
   ${meta.err?`<div class="err" style="margin-top:8px">${esc(meta.err)}</div>`:''}</div>`;
 }
 function vToday(){
@@ -444,6 +448,8 @@ document.getElementById('csv-file').addEventListener('change',async e=>{
 });
 document.getElementById('json-file').addEventListener('change',async e=>{const f=e.target.files[0];if(!f)return;try{const d=JSON.parse(await f.text());if(confirm('Replace app data with this backup?')){S={...S,...d,settings:{...DEFAULTS,...(d.settings||{})}};save();render()}}catch(err){alert('Invalid backup file')}e.target.value=''});
 load(); render(); pull();
+// A home-screen app that comes back from the background keeps the old page: check for new data then
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&Date.now()-lastPull>60000)pull()});
 </script>
 </body>
 </html>
