@@ -91,7 +91,7 @@ if (E.INTERVALS_ATHLETE_ID && E.INTERVALS_API_KEY) {
     const r = await fetch(`https://intervals.icu/api/v1/athlete/${encodeURIComponent(E.INTERVALS_ATHLETE_ID)}/activities?oldest=${oldest}&newest=${newest}`,
       { headers: { authorization: "Basic " + Buffer.from("API_KEY:" + E.INTERVALS_API_KEY).toString("base64"), "user-agent": "703ready/2.0", accept: "application/json" } });
     if (!r.ok) throw new Error("status " + r.status);
-    db.intervals = (await r.json()).map(a => ({ id: a.id, date: (a.start_date_local || "").slice(0, 10), type: a.type, name: a.name,
+    db.intervals = (await r.json()).map(a => ({ id: a.id, date: (a.start_date_local || "").slice(0, 10), start: a.start_date || null, elapsed_min: a.elapsed_time ? +(a.elapsed_time / 60).toFixed(1) : null, type: a.type, name: a.name,
       min: a.moving_time ? +(a.moving_time / 60).toFixed(1) : null, avg_w: a.icu_average_watts ?? a.average_watts ?? null,
       np: a.icu_weighted_avg_watts ?? null, avg_hr: a.average_heartrate ?? null, load: a.icu_training_load ?? null }));
     console.log(`Intervals.icu: ${db.intervals.length} activities`);

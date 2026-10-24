@@ -195,11 +195,30 @@ function trimp(min,hr,st){const x=Math.max(0,Math.min(1,(hr-st.rhr)/(st.hrmaxRun
 
 // ── matching done work to the plan ──
 function doneFor(date){
-  const c=[];
-  workouts().filter(w=>w.date===date).forEach(w=>{const t=typeOf(w.sport);if(t)c.push({src:'Whoop',type:t,min:w.min,hr:w.avg_hr,label:w.sport})});
-  IV.filter(a=>a.date===date).forEach(a=>{const t=typeOf(a.type);if(t)c.push({src:'Intervals',type:t,min:a.min,hr:a.avg_hr,w:a.avg_w,np:a.np,label:a.name||a.type})});
-  (S.fits[date]||[]).forEach(f=>c.push({src:'FIT',type:'bike',min:f.durMin,hr:f.avgHR,w:f.avgP,np:f.NP,label:'FIT upload',fit:f}));
-  return c;
+  const c=[]; const ms=x=>{const t=x?Date.parse(x):NaN;return isNaN(t)?null:t};
+  workouts().filter(w=>w.date===date).forEach(w=>{const t=typeOf(w.sport);if(t)c.push({src:'Whoop',type:t,min:w.min,hr:w.avg_hr,label:w.sport,t0:ms(w.start)})});
+  IV.filter(a=>a.date===date).forEach(a=>{const t=typeOf(a.type);if(t)c.push({src:'Intervals',type:t,min:a.min,span:a.elapsed_min||a.min,hr:a.avg_hr,w:a.avg_w,np:a.np,label:a.name||a.type,t0:ms(a.start)})});
+  (S.fits[date]||[]).forEach(f=>c.push({src:'FIT',type:'bike',min:f.durMin,hr:f.avgHR,w:f.avgP,np:f.NP,label:'FIT upload',fit:f,t0:ms(f.start)}));
+  return mergeSame(c);
+}
+// One workout often shows up more than once: Whoop and Garmin both record it, or the Garmin was started late
+// or restarted. Same sport and overlapping in time = one workout. Without start times (older data), a Garmin
+// file no longer than the Whoop workout (+10 min) on the same day is taken as part of it.
+function sameSession(a,b){
+  if(a.type!==b.type) return false;
+  if(a.t0!=null&&b.t0!=null){const sl=10*60000,e=x=>x.t0+((x.span||x.min||0)*60000);return a.t0<e(b)+sl&&b.t0<e(a)+sl;}
+  const wh=[a,b].find(x=>x.src==='Whoop'), ot=[a,b].find(x=>x.src!=='Whoop');
+  if(wh&&ot) return (ot.min||0)<=(wh.min||0)+10;
+  return Math.abs((a.min||0)-(b.min||0))<15;
+}
+function mergeSame(c){
+  const order=['FIT','Intervals','Whoop'], groups=[];
+  c.sort((a,b)=>(b.src==='Whoop')-(a.src==='Whoop')||(b.min||0)-(a.min||0)); // longest Whoop first as the anchor
+  for(const x of c){const g=groups.find(g=>g.some(p=>sameSession(p,x))); g?g.push(x):groups.push([x]);}
+  return groups.map(g=>{
+    const best=[...g].sort((a,b)=>order.indexOf(a.src)-order.indexOf(b.src))[0], long=[...g].sort((a,b)=>(b.min||0)-(a.min||0))[0];
+    return {...best,min:long.min,hr:long.hr||best.hr,src:[...new Set(g.map(p=>p.src))].sort((a,b)=>order.indexOf(a)-order.indexOf(b)).join(' + '),parts:g};
+  });
 }
 
 // ── Calendar-aware plan: UDA shifts and trips move or swap sessions (agreed Oct 21 2026) ──
@@ -248,6 +267,7 @@ function notesFor(date){const n=[...weekPlan(mondayOf(date))[date].notes];
   return n}
 
 const SRC_ORDER=['FIT','Intervals','Whoop'];
+const srcRank=x=>SRC_ORDER.indexOf(x.src.split(' ')[0]);
 const sameWk=(a,b)=>a.type===b.type&&Math.abs((a.min||0)-(b.min||0))<15;
 const wantFor=s=>s.type==='brick'?['bike','run','brick']:[s.type];
 // One day on its own: planned sessions matched to that day's workouts, plus leftovers (deduped across sources)
@@ -256,10 +276,10 @@ function matchRaw(date){
   const items=plan.map((s,i)=>{
     const manual=(S.logs[date]||{})[i]; const want=wantFor(s);
     const hits=cand.filter((c,j)=>!used.has(j)&&want.includes(c.type));
-    let m=null; if(hits.length){hits.sort((a,b)=>SRC_ORDER.indexOf(a.src)-SRC_ORDER.indexOf(b.src));m=hits[0];cand.forEach((c,j)=>{if(sameWk(c,m))used.add(j)})}
+    let m=null; if(hits.length){hits.sort((a,b)=>srcRank(a)-srcRank(b));m=hits[0];cand.forEach((c,j)=>{if(sameWk(c,m))used.add(j)})}
     return {s,i,auto:m,manual};
   });
-  const left=[];cand.filter((c,j)=>!used.has(j)).sort((a,b)=>SRC_ORDER.indexOf(a.src)-SRC_ORDER.indexOf(b.src)).forEach(c=>{if(!left.some(k=>sameWk(k,c)))left.push(c)});
+  const left=[];cand.filter((c,j)=>!used.has(j)).sort((a,b)=>srcRank(a)-srcRank(b)).forEach(c=>{if(!left.some(k=>sameWk(k,c)))left.push(c)});
   return {items,left};
 }
 // Workouts done earlier in the week that matched nothing (e.g. a run on a rest day) count toward a later
